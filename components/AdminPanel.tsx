@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { ScheduleItem, DAYS_OF_WEEK, MORNING_SLOTS, AFTERNOON_SLOTS, FIXED_MORNING_CLASSES, FIXED_AFTERNOON_CLASSES } from '../types';
+import { updateSchedule, subscribeToRegistry, updateRegistry, RegistryItem } from '../services/firebaseConfig';
 import { Eraser, Sun, Moon, X, Clock, Calendar, Filter, ChevronRight, CheckCircle, Database, Plus, Trash2, Save, Users, ChevronRight as ArrowIcon, AlertTriangle } from 'lucide-react';
 
 interface AdminPanelProps {
@@ -9,11 +10,6 @@ interface AdminPanelProps {
 }
 
 type Shift = 'MORNING' | 'AFTERNOON';
-
-interface RegistryItem {
-    subject: string;
-    teachers: string[];
-}
 
 export const AdminPanel: React.FC<AdminPanelProps> = ({ schedule, setSchedule, onClose }) => {
   const [selectedDay, setSelectedDay] = useState<number>(1); // Default: Segunda-feira
@@ -29,34 +25,23 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ schedule, setSchedule, o
 
   // -- Registry State (Cadastros Vinculados) --
   const [showRegistryModal, setShowRegistryModal] = useState(false);
-  const [registry, setRegistry] = useState<RegistryItem[]>(() => {
-    const saved = localStorage.getItem('school_registry_linked');
-    if (saved) return JSON.parse(saved);
-    // Dados iniciais de exemplo
-    return [
-        { subject: 'Português', teachers: [] },
-        { subject: 'Matemática', teachers: [] },
-        { subject: 'História', teachers: [] },
-        { subject: 'Geografia', teachers: [] },
-        { subject: 'Ciências', teachers: [] },
-        { subject: 'Inglês', teachers: [] },
-        { subject: 'Ed. Física', teachers: [] },
-        { subject: 'Arte', teachers: [] }
-    ];
-  });
+  const [registry, setRegistry] = useState<RegistryItem[]>([]); // Start empty, load from Firebase
 
   // Estados do Modal de Cadastro
-  const [editingSubject, setEditingSubject] = useState<string | null>(null); // Qual disciplina está selecionada para editar professores
+  const [editingSubject, setEditingSubject] = useState<string | null>(null);
   const [newSubjectInput, setNewSubjectInput] = useState("");
   const [newTeacherInput, setNewTeacherInput] = useState("");
 
   // Estado para destaque visual de conflito
   const [highlightedConflictId, setHighlightedConflictId] = useState<string | null>(null);
 
-  // Persist Registry
+  // Subscribe to Registry on mount
   useEffect(() => {
-    localStorage.setItem('school_registry_linked', JSON.stringify(registry));
-  }, [registry]);
+    const unsubscribe = subscribeToRegistry((data) => {
+        setRegistry(data);
+    });
+    return () => unsubscribe();
+  }, []);
 
   // Seleciona automaticamente a primeira turma da lista ao trocar de turno
   useEffect(() => {
@@ -64,20 +49,29 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ schedule, setSchedule, o
     setSelectedClass(defaultClass);
   }, [selectedShift]);
 
-  // -- Registry Handlers --
+  // -- Registry Handlers (Saving to Firebase) --
+
+  const handleSaveRegistry = (newRegistry: RegistryItem[]) => {
+    // Update local for speed (optional if subscription is fast)
+    setRegistry(newRegistry); 
+    // Save to DB
+    updateRegistry(newRegistry);
+  };
 
   const handleAddSubject = (e: React.FormEvent) => {
     e.preventDefault();
     const normalizedName = newSubjectInput.trim();
     if (normalizedName && !registry.some(r => r.subject.toLowerCase() === normalizedName.toLowerCase())) {
-        setRegistry([...registry, { subject: normalizedName, teachers: [] }].sort((a,b) => a.subject.localeCompare(b.subject)));
+        const newRegistry = [...registry, { subject: normalizedName, teachers: [] }].sort((a,b) => a.subject.localeCompare(b.subject));
+        handleSaveRegistry(newRegistry);
         setNewSubjectInput("");
-        setEditingSubject(normalizedName); // Seleciona automaticamente a nova disciplina
+        setEditingSubject(normalizedName);
     }
   };
 
   const handleRemoveSubject = (subjectName: string) => {
-    setRegistry(registry.filter(r => r.subject !== subjectName));
+    const newRegistry = registry.filter(r => r.subject !== subjectName);
+    handleSaveRegistry(newRegistry);
     if (editingSubject === subjectName) setEditingSubject(null);
   };
 
@@ -86,25 +80,32 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ schedule, setSchedule, o
     if (!editingSubject || !newTeacherInput.trim()) return;
 
     const teacherName = newTeacherInput.trim();
-    setRegistry(registry.map(item => {
+    const newRegistry = registry.map(item => {
         if (item.subject === editingSubject && !item.teachers.includes(teacherName)) {
             return { ...item, teachers: [...item.teachers, teacherName].sort() };
         }
         return item;
-    }));
+    });
+    handleSaveRegistry(newRegistry);
     setNewTeacherInput("");
   };
 
   const handleRemoveTeacherFromSubject = (subjectName: string, teacherName: string) => {
-    setRegistry(registry.map(item => {
+    const newRegistry = registry.map(item => {
         if (item.subject === subjectName) {
             return { ...item, teachers: item.teachers.filter(t => t !== teacherName) };
         }
         return item;
-    }));
+    });
+    handleSaveRegistry(newRegistry);
   };
 
-  // -- Schedule Handlers --
+  // -- Schedule Handlers (Saving to Firebase) --
+
+  const handleSaveSchedule = (newSchedule: ScheduleItem[]) => {
+    setSchedule(newSchedule); // Local update
+    updateSchedule(newSchedule); // Firebase update
+  };
 
   // Helper to check for conflicts
   const checkTeacherConflict = (day: number, start: string, teacherToCheck: string, excludeSlotId: string) => {
@@ -119,10 +120,8 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ schedule, setSchedule, o
 
   const triggerConflictAlert = (id: string, teacher: string, conflictingClass: string, time: string) => {
     setHighlightedConflictId(id);
-    // Remove highlight after 3 seconds
     setTimeout(() => setHighlightedConflictId(null), 3000);
     
-    // Small delay to allow React to render the red highlight before alert blocks the thread
     setTimeout(() => {
         alert(
             `⛔ CONFLITO DE HORÁRIO DETECTADO!\n\n` +
@@ -143,7 +142,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ schedule, setSchedule, o
         const conflict = checkTeacherConflict(currentItem.dayOfWeek, currentItem.startTime, value, id);
         if (conflict) {
             triggerConflictAlert(id, value, conflict.className, conflict.startTime);
-            return; // Block update
+            return;
         }
     }
 
@@ -154,16 +153,14 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ schedule, setSchedule, o
     if (field === 'subject') {
         const registryEntry = registry.find(r => r.subject.toLowerCase() === String(value).toLowerCase());
         
-        // If subject exists and has exactly 1 teacher, we prepare to auto-fill
         if (registryEntry && registryEntry.teachers.length === 1) {
             autoTeacherName = registryEntry.teachers[0];
             shouldAutoFill = true;
 
-            // Check conflict for the AUTO-FILLED teacher
             const conflict = checkTeacherConflict(currentItem.dayOfWeek, currentItem.startTime, autoTeacherName, id);
             if (conflict) {
                 triggerConflictAlert(id, autoTeacherName, conflict.className, conflict.startTime);
-                return; // Block update
+                return;
             }
         }
     }
@@ -174,20 +171,17 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ schedule, setSchedule, o
       if (item.id === id) {
         const newItem = { ...item, [field]: value };
 
-        // Apply Logic for Auto-Fill
         if (field === 'subject') {
             if (shouldAutoFill) {
                 newItem.teacherName = autoTeacherName;
-            } else if (!value) {
-                // If clearing subject, maybe clear teacher? Let's keep manual clearing for flexibility, 
-                // or clear if it was linked. For now, let's leave teacher unless explicitly cleared to avoid data loss.
             }
         }
         return newItem;
       }
       return item;
     });
-    setSchedule(updatedSchedule);
+    
+    handleSaveSchedule(updatedSchedule);
   };
 
   const handleClearSlot = (e: React.MouseEvent, id: string) => {
@@ -197,7 +191,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ schedule, setSchedule, o
     const updatedSchedule = schedule.map(item => 
         item.id === id ? { ...item, subject: '', teacherName: '' } : item
     );
-    setSchedule(updatedSchedule);
+    handleSaveSchedule(updatedSchedule);
   };
 
   const handleInitializeClassSchedule = () => {
@@ -226,7 +220,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ schedule, setSchedule, o
         isBreak: slot.isBreak
     }));
 
-    setSchedule([...schedule, ...newItems]);
+    handleSaveSchedule([...schedule, ...newItems]);
   };
 
   const visibleClasses = selectedShift === 'MORNING' ? FIXED_MORNING_CLASSES : FIXED_AFTERNOON_CLASSES;
@@ -237,7 +231,6 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ schedule, setSchedule, o
     })
     .sort((a, b) => a.startTime.localeCompare(b.startTime));
 
-  // Lista global de todos os professores (fallback)
   const allTeachers = Array.from(new Set(registry.flatMap(r => r.teachers))).sort();
 
   return (
@@ -371,7 +364,6 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ schedule, setSchedule, o
                         </thead>
                         <tbody className="divide-y divide-slate-800">
                             {filteredSchedule.map((item) => {
-                                // Find registry entry for this item's subject to populate teacher datalist
                                 const registryEntry = registry.find(r => r.subject.toLowerCase() === item.subject.toLowerCase());
                                 const availableTeachers = registryEntry ? registryEntry.teachers : allTeachers;
                                 const isConflict = highlightedConflictId === item.id;
@@ -397,7 +389,6 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ schedule, setSchedule, o
                                         />
                                     </td>
                                     <td className="p-2 relative">
-                                        {/* Dynamic Datalist for this specific row/subject */}
                                         <datalist id={`teachers-for-${item.id}`}>
                                             {availableTeachers.map(t => <option key={t} value={t} />)}
                                         </datalist>

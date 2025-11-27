@@ -1,20 +1,20 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Clock } from './components/Clock';
 import { CurrentSlotCard } from './components/CurrentSlotCard';
 import { AdminPanel } from './components/AdminPanel';
 import { ScheduleOverviewModal } from './components/ScheduleOverviewModal';
 import { ScheduleItem, ViewMode, MORNING_SLOTS, AFTERNOON_SLOTS } from './types';
-import { Settings, Lock, X, Grid, Calendar } from 'lucide-react';
+import { subscribeToSchedule } from './services/firebaseConfig';
+import { Settings, Lock, X, Calendar } from 'lucide-react';
 
 // Default calm chime sound
 const ALERT_SOUND_URL = "https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3";
 
 const App: React.FC = () => {
   const [viewMode, setViewMode] = useState<ViewMode>(ViewMode.DASHBOARD);
-  const [schedule, setSchedule] = useState<ScheduleItem[]>(() => {
-    const saved = localStorage.getItem('school_schedule');
-    return saved ? JSON.parse(saved) : [];
-  });
+  
+  // SCHEDULE STATE: Controlled by Firebase
+  const [schedule, setSchedule] = useState<ScheduleItem[]>([]);
   
   // Auth Modal State
   const [showAuthModal, setShowAuthModal] = useState(false);
@@ -28,9 +28,16 @@ const App: React.FC = () => {
   const lastPlayedRef = useRef<string | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
+  // --- FIREBASE SUBSCRIPTION ---
   useEffect(() => {
-    localStorage.setItem('school_schedule', JSON.stringify(schedule));
-  }, [schedule]);
+    // Connect to Realtime Database
+    const unsubscribe = subscribeToSchedule((data) => {
+      setSchedule(data);
+    });
+
+    // Cleanup listener on unmount
+    return () => unsubscribe();
+  }, []);
 
   useEffect(() => {
     audioRef.current = new Audio(ALERT_SOUND_URL);
@@ -172,7 +179,7 @@ const App: React.FC = () => {
       {/* Footer / Controls - Very compact */}
       <footer className="px-4 py-2 flex justify-between items-center shrink-0 bg-gradient-to-t from-black via-black/90 to-transparent z-20 h-[5vh]">
           <div className="text-red-900/50 text-[10px] font-mono">
-              v2.1
+              v2.1 (Online)
           </div>
           
           <button 
