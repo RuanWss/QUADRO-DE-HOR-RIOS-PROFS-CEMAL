@@ -2,17 +2,16 @@ import { initializeApp } from 'firebase/app';
 import { getDatabase, ref, onValue, set } from 'firebase/database';
 import { ScheduleItem } from '../types';
 
-// SUAS CREDENCIAIS DO FIREBASE
+// CREDENCIAIS ATUALIZADAS
 const firebaseConfig = {
   apiKey: "AIzaSyAO9x8YDYqauALigdwn88sIH0mz4o1dkq8",
   authDomain: "quadro-de-horarios-cemal.firebaseapp.com",
-  // A URL deve ser exata. Adicionamos o sufixo padrão.
-  databaseURL: "https://quadro-de-horarios-cemal-default-rtdb.firebaseio.com", 
+  databaseURL: "https://quadro-de-horarios-cemal-default-rtdb.firebaseio.com",
   projectId: "quadro-de-horarios-cemal",
   storageBucket: "quadro-de-horarios-cemal.firebasestorage.app",
   messagingSenderId: "938230155772",
-  appId: "1:938230155772:web:233c1988be79c58ad7ca79",
-  measurementId: "G-X4GRDELC5Q"
+  appId: "1:938230155772:web:43939687fd5d6f59d7ca79",
+  measurementId: "G-MWK9PMPBH8"
 };
 
 // Variáveis globais para armazenar a instância
@@ -23,17 +22,15 @@ try {
     console.log("Iniciando conexão com Firebase...");
     app = initializeApp(firebaseConfig);
     db = getDatabase(app);
-    console.log("Firebase conectado com sucesso!");
+    console.log("Firebase conectado com sucesso! URL:", firebaseConfig.databaseURL);
 } catch (e) {
     console.error("ERRO GRAVE AO CONECTAR FIREBASE:", e);
-    // Não usamos alert aqui para não travar o carregamento inicial se for apenas um delay
 }
 
 // --- FUNÇÃO DE AUXÍLIO PARA REINICIALIZAÇÃO MANUAL ---
 export const initFirebaseManually = (customUrl: string) => {
     try {
         const config = { ...firebaseConfig, databaseURL: customUrl };
-        // Deleta instância anterior se possível (hack para SPA simples)
         const newApp = initializeApp(config, 'manual-' + Date.now()); 
         db = getDatabase(newApp);
         console.log("Reconectado manualmente na URL:", customUrl);
