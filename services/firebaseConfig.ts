@@ -2,12 +2,12 @@ import { initializeApp } from 'firebase/app';
 import { getDatabase, ref, onValue, set } from 'firebase/database';
 import { ScheduleItem } from '../types';
 
-// --- CONFIGURAÇÃO DO FIREBASE ---
+// CONFIGURAÇÃO OFICIAL DO SEU PROJETO
 const firebaseConfig = {
   apiKey: "AIzaSyAO9x8YDYqauALigdwn88sIH0mz4o1dkq8",
   authDomain: "quadro-de-horarios-cemal.firebaseapp.com",
-  // URL Padrão do Realtime Database (Geralmente é https://[project-id].firebaseio.com)
-  databaseURL: "https://quadro-de-horarios-cemal.firebaseio.com",
+  // A URL deve ser exata. Se não funcionar, verifique no console do Firebase.
+  databaseURL: "https://quadro-de-horarios-cemal-default-rtdb.firebaseio.com", 
   projectId: "quadro-de-horarios-cemal",
   storageBucket: "quadro-de-horarios-cemal.firebasestorage.app",
   messagingSenderId: "938230155772",
@@ -15,75 +15,59 @@ const firebaseConfig = {
   measurementId: "G-X4GRDELC5Q"
 };
 
-// Initialize Firebase
+// Variáveis globais para armazenar a instância
 let app;
 let db;
 
-// Função auxiliar para inicializar com URL dinâmica (caso o usuário troque na tela de erro)
+try {
+    console.log("Iniciando conexão com Firebase...");
+    app = initializeApp(firebaseConfig);
+    db = getDatabase(app);
+    console.log("Firebase conectado com sucesso!");
+} catch (e) {
+    console.error("ERRO GRAVE AO CONECTAR FIREBASE:", e);
+    alert("Erro de Conexão: Verifique o console do navegador (F12).");
+}
+
+// --- FUNÇÃO DE AUXÍLIO PARA REINICIALIZAÇÃO MANUAL (Caso a URL mude) ---
 export const initFirebaseManually = (customUrl: string) => {
     try {
         const config = { ...firebaseConfig, databaseURL: customUrl };
-        const newApp = initializeApp(config, 'manual-init-' + Date.now()); // Unique name
-        const newDb = getDatabase(newApp);
-        db = newDb; // Update global db reference
-        console.log("Firebase reinicializado manualmente com URL:", customUrl);
+        // Deleta instância anterior se possível (hack para SPA simples)
+        const newApp = initializeApp(config, 'manual-' + Date.now()); 
+        db = getDatabase(newApp);
+        console.log("Reconectado manualmente na URL:", customUrl);
         return true;
     } catch (e) {
-        console.error("Erro na reinicialização manual:", e);
+        console.error("Falha ao reconectar:", e);
         return false;
     }
 };
 
-try {
-    console.log("Inicializando Firebase App...");
-    app = initializeApp(firebaseConfig);
-    console.log("Firebase App inicializado. Obtendo Database...");
-    
-    // Tenta obter o banco de dados.
-    // Se o importmap estiver misturado, o getDatabase falha aqui.
-    db = getDatabase(app);
-    console.log("Firebase Database conectado com sucesso na URL:", firebaseConfig.databaseURL);
-} catch (error) {
-    console.error("ERRO CRÍTICO AO INICIALIZAR FIREBASE:", error);
-    // Não lançamos erro aqui para permitir que a UI carregue e mostre a tela de diagnóstico
-}
-
-// --- SERVICES ---
+// --- SERVIÇOS DE DADOS (HORÁRIOS) ---
 
 export const subscribeToSchedule = (callback: (data: ScheduleItem[]) => void) => {
-  if (!db) {
-      console.warn("DB não inicializado, ignorando subscribeToSchedule. Verifique a configuração do Firebase.");
-      return () => {};
-  }
+  if (!db) return () => {};
   
-  try {
-    const scheduleRef = ref(db, 'school_schedule');
-    console.log("Inscrevendo em school_schedule...");
-    return onValue(scheduleRef, (snapshot) => {
-      const data = snapshot.val();
-      console.log("Dados recebidos (Schedule):", data ? "OK" : "Vazio/Null");
-      callback(data || []);
-    }, (error) => {
-      console.error("ERRO DE LEITURA FIREBASE:", error);
-      // Dispara um evento global para a UI pegar
-      window.dispatchEvent(new CustomEvent('firebase-error', { detail: error.message }));
-    });
-  } catch (e) {
-    console.error("Erro síncrono no subscribeToSchedule:", e);
-    return () => {};
-  }
+  const scheduleRef = ref(db, 'school_schedule');
+  
+  return onValue(scheduleRef, (snapshot) => {
+    const data = snapshot.val();
+    callback(data || []);
+  }, (error) => {
+    console.error("ERRO DE PERMISSÃO FIREBASE:", error);
+    // Dispara evento para a UI mostrar o aviso de "Regras Bloqueadas"
+    window.dispatchEvent(new CustomEvent('firebase-error', { detail: error.message }));
+  });
 };
 
 export const updateSchedule = async (newSchedule: ScheduleItem[]) => {
   if (!db) return;
-  try {
-    const scheduleRef = ref(db, 'school_schedule');
-    await set(scheduleRef, newSchedule);
-  } catch (e) {
-    console.error("Erro ao salvar horário:", e);
-    alert("Erro ao salvar no Firebase: " + e.message);
-  }
+  const scheduleRef = ref(db, 'school_schedule');
+  await set(scheduleRef, newSchedule);
 };
+
+// --- SERVIÇOS DE DADOS (CADASTROS/REGISTRY) ---
 
 export interface RegistryItem {
     subject: string;
@@ -92,27 +76,19 @@ export interface RegistryItem {
 
 export const subscribeToRegistry = (callback: (data: RegistryItem[]) => void) => {
   if (!db) return () => {};
-
-  try {
-    const registryRef = ref(db, 'school_registry_linked');
-    return onValue(registryRef, (snapshot) => {
-      const data = snapshot.val();
-      callback(data || []);
-    }, (error) => {
-        console.error("Erro Registry:", error);
-    });
-  } catch (e) {
-    console.error("Erro síncrono no subscribeToRegistry:", e);
-    return () => {};
-  }
+  
+  const registryRef = ref(db, 'school_registry_linked');
+  
+  return onValue(registryRef, (snapshot) => {
+    const data = snapshot.val();
+    callback(data || []);
+  }, (error) => {
+    console.error("Erro ao ler cadastros:", error);
+  });
 };
 
 export const updateRegistry = async (newRegistry: RegistryItem[]) => {
   if (!db) return;
-  try {
-    const registryRef = ref(db, 'school_registry_linked');
-    await set(registryRef, newRegistry);
-  } catch (e) {
-    console.error("Erro ao salvar cadastro:", e);
-  }
+  const registryRef = ref(db, 'school_registry_linked');
+  await set(registryRef, newRegistry);
 };
