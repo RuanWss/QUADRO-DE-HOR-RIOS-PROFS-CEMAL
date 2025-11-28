@@ -3,11 +3,10 @@ import { getDatabase, ref, onValue, set } from 'firebase/database';
 import { ScheduleItem } from '../types';
 
 // --- CONFIGURAÇÃO DO FIREBASE ---
-// Se o site ficar travado em "Carregando...", verifique se as Regras do Realtime Database estão como "true" no console.
 const firebaseConfig = {
   apiKey: "AIzaSyAO9x8YDYqauALigdwn88sIH0mz4o1dkq8",
   authDomain: "quadro-de-horarios-cemal.firebaseapp.com",
-  // Esta URL é padrão para novos projetos. Se der erro 404 no console, tente remover "-default-rtdb".
+  // Tente ambas as URLs se der erro. O padrão é a primeira.
   databaseURL: "https://quadro-de-horarios-cemal-default-rtdb.firebaseio.com",
   projectId: "quadro-de-horarios-cemal",
   storageBucket: "quadro-de-horarios-cemal.firebasestorage.app",
@@ -20,35 +19,56 @@ const firebaseConfig = {
 let app;
 let db;
 
+// Função auxiliar para inicializar com URL dinâmica (caso o usuário troque na tela de erro)
+export const initFirebaseManually = (customUrl: string) => {
+    try {
+        const config = { ...firebaseConfig, databaseURL: customUrl };
+        const newApp = initializeApp(config, 'manual-init-' + Date.now()); // Unique name
+        const newDb = getDatabase(newApp);
+        db = newDb; // Update global db reference
+        console.log("Firebase reinicializado manualmente com URL:", customUrl);
+        return true;
+    } catch (e) {
+        console.error("Erro na reinicialização manual:", e);
+        return false;
+    }
+};
+
 try {
-    console.log("Tentando inicializar Firebase...");
+    console.log("Inicializando Firebase App...");
     app = initializeApp(firebaseConfig);
+    console.log("Firebase App OK. Obtendo Database...");
+    
+    // Tenta obter o banco de dados. Se falhar aqui, cai no catch.
     db = getDatabase(app);
-    console.log("Firebase inicializado com sucesso!");
+    console.log("Firebase Database conectado!");
 } catch (error) {
     console.error("ERRO CRÍTICO AO INICIALIZAR FIREBASE:", error);
+    // Não lançamos erro aqui para permitir que a UI carregue e mostre a tela de diagnóstico
 }
 
 // --- SERVICES ---
 
-// 1. SCHEDULE (Grade Horária)
-
 export const subscribeToSchedule = (callback: (data: ScheduleItem[]) => void) => {
-  if (!db) return () => {};
+  if (!db) {
+      console.warn("DB não inicializado, ignorando subscribeToSchedule");
+      return () => {};
+  }
   
   try {
     const scheduleRef = ref(db, 'school_schedule');
-    console.log("Conectando ao nó school_schedule...");
+    console.log("Inscrevendo em school_schedule...");
     return onValue(scheduleRef, (snapshot) => {
       const data = snapshot.val();
-      console.log("Dados recebidos do Firebase (Schedule):", data ? "Dados encontrados" : "Vazio");
+      console.log("Dados recebidos (Schedule):", data ? "OK" : "Vazio/Null");
       callback(data || []);
     }, (error) => {
-      console.error("ERRO DE PERMISSÃO FIREBASE:", error);
-      alert("Erro: O site não tem permissão para ler o banco de dados. Acesse o Console do Firebase > Realtime Database > Regras e altere para '.read': true, '.write': true");
+      console.error("ERRO DE LEITURA FIREBASE:", error);
+      // Dispara um evento global para a UI pegar
+      window.dispatchEvent(new CustomEvent('firebase-error', { detail: error.message }));
     });
   } catch (e) {
-    console.error("Erro na conexão com Firebase (Schedule):", e);
+    console.error("Erro síncrono no subscribeToSchedule:", e);
     return () => {};
   }
 };
@@ -57,14 +77,12 @@ export const updateSchedule = async (newSchedule: ScheduleItem[]) => {
   if (!db) return;
   try {
     const scheduleRef = ref(db, 'school_schedule');
-    return set(scheduleRef, newSchedule);
+    await set(scheduleRef, newSchedule);
   } catch (e) {
     console.error("Erro ao salvar horário:", e);
-    alert("Erro ao salvar. Verifique se as Regras do Firebase permitem escrita.");
+    alert("Erro ao salvar no Firebase. Verifique sua conexão e permissões.");
   }
 };
-
-// 2. REGISTRY (Cadastros de Disciplinas/Professores)
 
 export interface RegistryItem {
     subject: string;
@@ -80,10 +98,10 @@ export const subscribeToRegistry = (callback: (data: RegistryItem[]) => void) =>
       const data = snapshot.val();
       callback(data || []);
     }, (error) => {
-      console.error("Erro ao ler cadastros do Firebase:", error);
+        console.error("Erro Registry:", error);
     });
   } catch (e) {
-    console.error("Erro na conexão com Firebase (Registry):", e);
+    console.error("Erro síncrono no subscribeToRegistry:", e);
     return () => {};
   }
 };
@@ -92,7 +110,7 @@ export const updateRegistry = async (newRegistry: RegistryItem[]) => {
   if (!db) return;
   try {
     const registryRef = ref(db, 'school_registry_linked');
-    return set(registryRef, newRegistry);
+    await set(registryRef, newRegistry);
   } catch (e) {
     console.error("Erro ao salvar cadastro:", e);
   }
