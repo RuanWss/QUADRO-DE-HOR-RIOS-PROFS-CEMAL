@@ -4,8 +4,8 @@ import { CurrentSlotCard } from './components/CurrentSlotCard';
 import { AdminPanel } from './components/AdminPanel';
 import { ScheduleOverviewModal } from './components/ScheduleOverviewModal';
 import { ScheduleItem, ViewMode, MORNING_SLOTS, AFTERNOON_SLOTS } from './types';
-import { subscribeToSchedule } from './services/firebaseConfig';
-import { Settings, Lock, X, Calendar } from 'lucide-react';
+import { subscribeToSchedule, initFirebaseManually } from './services/firebaseConfig';
+import { Settings, Lock, X, Calendar, WifiOff, RefreshCcw } from 'lucide-react';
 
 // Default calm chime sound
 const ALERT_SOUND_URL = "https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3";
@@ -15,7 +15,12 @@ const App: React.FC = () => {
   
   // SCHEDULE STATE: Controlled by Firebase
   const [schedule, setSchedule] = useState<ScheduleItem[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [connectionError, setConnectionError] = useState<string | null>(null);
   
+  // Manual Connection UI
+  const [manualUrl, setManualUrl] = useState("https://quadro-de-horarios-cemal.firebaseio.com");
+
   // Auth Modal State
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [pinInput, setPinInput] = useState("");
@@ -30,13 +35,30 @@ const App: React.FC = () => {
 
   // --- FIREBASE SUBSCRIPTION ---
   useEffect(() => {
-    // Connect to Realtime Database
+    // Timeout para detectar falha silenciosa na conexão
+    const connectionTimeout = setTimeout(() => {
+        if (isLoading && schedule.length === 0) {
+            setConnectionError("Tempo limite excedido. Verifique se o banco de dados está liberado (Regras .read: true) ou se a URL está correta.");
+        }
+    }, 5000);
+
     const unsubscribe = subscribeToSchedule((data) => {
       setSchedule(data);
+      setIsLoading(false);
+      setConnectionError(null);
     });
+    
+    // Listener de erro global do Firebase
+    const handleFirebaseError = (e: any) => {
+        setConnectionError("Erro de Permissão ou Conexão: " + (e.detail || "Desconhecido"));
+    };
+    window.addEventListener('firebase-error', handleFirebaseError);
 
-    // Cleanup listener on unmount
-    return () => unsubscribe();
+    return () => {
+        unsubscribe();
+        clearTimeout(connectionTimeout);
+        window.removeEventListener('firebase-error', handleFirebaseError);
+    };
   }, []);
 
   useEffect(() => {
@@ -125,6 +147,54 @@ const App: React.FC = () => {
       }
   };
 
+  const handleManualConnect = () => {
+      const success = initFirebaseManually(manualUrl);
+      if (success) {
+          setConnectionError("Reconectando...");
+          window.location.reload();
+      }
+  };
+
+  if (connectionError) {
+      return (
+          <div className="h-screen w-screen bg-black flex flex-col items-center justify-center p-8 text-white font-sans">
+              <div className="bg-red-950/50 border border-red-800 p-8 rounded-2xl max-w-2xl w-full">
+                  <div className="flex items-center gap-4 mb-4 text-red-500">
+                      <WifiOff size={48} />
+                      <h1 className="text-2xl font-bold">Erro de Conexão com Firebase</h1>
+                  </div>
+                  <p className="text-red-200 mb-6 font-mono text-sm bg-black/50 p-4 rounded border border-red-900/50">
+                      {connectionError}
+                  </p>
+                  
+                  <div className="space-y-4">
+                      <h3 className="font-bold text-white">Diagnóstico e Correção:</h3>
+                      <ul className="list-disc list-inside text-slate-300 text-sm space-y-2">
+                          <li>Verifique se as <strong>Regras do Realtime Database</strong> estão como <code>.read: true, .write: true</code>.</li>
+                          <li>Verifique se a URL do banco está correta abaixo.</li>
+                      </ul>
+
+                      <div className="flex gap-2 mt-4">
+                          <input 
+                            type="text" 
+                            value={manualUrl} 
+                            onChange={(e) => setManualUrl(e.target.value)}
+                            className="flex-1 bg-black border border-slate-700 text-white px-4 py-2 rounded"
+                            placeholder="https://seu-projeto.firebaseio.com"
+                          />
+                          <button 
+                            onClick={handleManualConnect}
+                            className="bg-red-600 hover:bg-red-500 text-white px-6 py-2 rounded font-bold flex items-center gap-2"
+                          >
+                              <RefreshCcw size={18} /> Testar
+                          </button>
+                      </div>
+                  </div>
+              </div>
+          </div>
+      );
+  }
+
   return (
     <div className="h-screen w-screen bg-black text-slate-100 font-sans selection:bg-red-500/30 overflow-hidden relative flex flex-col">
       
@@ -153,7 +223,15 @@ const App: React.FC = () => {
           </div>
           
           {/* Schedule Grid - Takes remaining space */}
-          <div className="flex-1 min-h-0 w-full flex items-center justify-center py-2">
+          <div className="flex-1 min-h-0 w-full flex items-center justify-center py-2 relative">
+              {isLoading && schedule.length === 0 ? (
+                  <div className="absolute inset-0 flex items-center justify-center z-20 bg-black/50 backdrop-blur-sm rounded-xl border border-red-900/30">
+                      <div className="flex flex-col items-center gap-3">
+                          <div className="w-8 h-8 border-2 border-red-500 border-t-transparent rounded-full animate-spin"></div>
+                          <span className="text-red-300 text-sm font-mono tracking-widest animate-pulse">SINCRONIZANDO...</span>
+                      </div>
+                  </div>
+              ) : null}
               <CurrentSlotCard schedule={schedule} />
           </div>
 
@@ -179,7 +257,7 @@ const App: React.FC = () => {
       {/* Footer / Controls - Very compact */}
       <footer className="px-4 py-2 flex justify-between items-center shrink-0 bg-gradient-to-t from-black via-black/90 to-transparent z-20 h-[5vh]">
           <div className="text-red-900/50 text-[10px] font-mono">
-              v2.1 (Online)
+              v2.3 (Stable)
           </div>
           
           <button 
