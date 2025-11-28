@@ -5,7 +5,7 @@ import { AdminPanel } from './components/AdminPanel';
 import { ScheduleOverviewModal } from './components/ScheduleOverviewModal';
 import { ScheduleItem, ViewMode, MORNING_SLOTS, AFTERNOON_SLOTS } from './types';
 import { subscribeToSchedule, initFirebaseManually } from './services/firebaseConfig';
-import { Settings, Lock, X, Calendar, WifiOff, RefreshCcw } from 'lucide-react';
+import { Settings, Lock, X, Calendar, WifiOff, RefreshCcw, AlertTriangle } from 'lucide-react';
 
 // Default calm chime sound
 const ALERT_SOUND_URL = "https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3";
@@ -38,7 +38,7 @@ const App: React.FC = () => {
     // Timeout para detectar falha silenciosa na conexão
     const connectionTimeout = setTimeout(() => {
         if (isLoading && schedule.length === 0) {
-            setConnectionError("Tempo limite excedido. Verifique se o banco de dados está liberado (Regras .read: true) ou se a URL está correta.");
+            setConnectionError("Tempo limite excedido. O banco de dados pode estar bloqueado ou vazio.");
         }
     }, 5000);
 
@@ -50,7 +50,12 @@ const App: React.FC = () => {
     
     // Listener de erro global do Firebase
     const handleFirebaseError = (e: any) => {
-        setConnectionError("Erro de Permissão ou Conexão: " + (e.detail || "Desconhecido"));
+        let msg = e.detail || "Desconhecido";
+        if (msg.includes("permission_denied") || msg.includes("Permission denied")) {
+            setConnectionError("PERMISSÃO NEGADA: O Firebase bloqueou o acesso.");
+        } else {
+            setConnectionError("Erro de Conexão: " + msg);
+        }
     };
     window.addEventListener('firebase-error', handleFirebaseError);
 
@@ -158,36 +163,51 @@ const App: React.FC = () => {
   if (connectionError) {
       return (
           <div className="h-screen w-screen bg-black flex flex-col items-center justify-center p-8 text-white font-sans">
-              <div className="bg-red-950/50 border border-red-800 p-8 rounded-2xl max-w-2xl w-full">
-                  <div className="flex items-center gap-4 mb-4 text-red-500">
-                      <WifiOff size={48} />
-                      <h1 className="text-2xl font-bold">Erro de Conexão com Firebase</h1>
+              <div className="bg-red-950/50 border border-red-800 p-8 rounded-2xl max-w-3xl w-full shadow-2xl">
+                  <div className="flex items-center gap-4 mb-6 text-red-500 border-b border-red-900/50 pb-4">
+                      <AlertTriangle size={48} />
+                      <div>
+                        <h1 className="text-2xl font-bold">Acesso Bloqueado pelo Firebase</h1>
+                        <p className="text-red-300 text-sm">{connectionError}</p>
+                      </div>
                   </div>
-                  <p className="text-red-200 mb-6 font-mono text-sm bg-black/50 p-4 rounded border border-red-900/50">
-                      {connectionError}
-                  </p>
                   
                   <div className="space-y-4">
-                      <h3 className="font-bold text-white">Diagnóstico e Correção:</h3>
-                      <ul className="list-disc list-inside text-slate-300 text-sm space-y-2">
-                          <li>Verifique se as <strong>Regras do Realtime Database</strong> estão como <code>.read: true, .write: true</code>.</li>
-                          <li>Verifique se a URL do banco está correta abaixo.</li>
-                      </ul>
+                      <div className="bg-black/40 p-4 rounded border border-slate-700">
+                        <h3 className="font-bold text-white mb-2 text-lg">⚠️ AÇÃO NECESSÁRIA (Resolva em 1 minuto):</h3>
+                        <ol className="list-decimal list-inside text-slate-300 text-sm space-y-2">
+                            <li>Acesse o <a href="https://console.firebase.google.com/" target="_blank" className="text-blue-400 underline hover:text-blue-300">Console do Firebase</a>.</li>
+                            <li>Vá em <strong>Criação (Build)</strong> &gt; <strong>Realtime Database</strong> &gt; aba <strong>Regras (Rules)</strong>.</li>
+                            <li>Copie e cole o código abaixo (substituindo o que estiver lá):</li>
+                        </ol>
+                        <div className="mt-3 bg-slate-900 p-3 rounded border border-slate-600 font-mono text-xs text-green-400 select-all">
+                            {`{
+  "rules": {
+    ".read": true,
+    ".write": true
+  }
+}`}
+                        </div>
+                        <p className="text-slate-400 text-xs mt-2">Clique em <strong>Publicar</strong> e depois recarregue esta página.</p>
+                      </div>
 
-                      <div className="flex gap-2 mt-4">
-                          <input 
-                            type="text" 
-                            value={manualUrl} 
-                            onChange={(e) => setManualUrl(e.target.value)}
-                            className="flex-1 bg-black border border-slate-700 text-white px-4 py-2 rounded"
-                            placeholder="https://seu-projeto.firebaseio.com"
-                          />
-                          <button 
-                            onClick={handleManualConnect}
-                            className="bg-red-600 hover:bg-red-500 text-white px-6 py-2 rounded font-bold flex items-center gap-2"
-                          >
-                              <RefreshCcw size={18} /> Testar
-                          </button>
+                      <div className="mt-6 pt-4 border-t border-slate-800">
+                          <p className="text-slate-500 text-xs mb-2">Opções Avançadas (URL do Banco):</p>
+                          <div className="flex gap-2">
+                              <input 
+                                type="text" 
+                                value={manualUrl} 
+                                onChange={(e) => setManualUrl(e.target.value)}
+                                className="flex-1 bg-black border border-slate-700 text-white px-4 py-2 rounded text-sm font-mono"
+                                placeholder="https://seu-projeto.firebaseio.com"
+                              />
+                              <button 
+                                onClick={handleManualConnect}
+                                className="bg-slate-700 hover:bg-slate-600 text-white px-6 py-2 rounded font-bold flex items-center gap-2 text-sm"
+                              >
+                                  <RefreshCcw size={16} /> Testar URL
+                              </button>
+                          </div>
                       </div>
                   </div>
               </div>
@@ -257,7 +277,7 @@ const App: React.FC = () => {
       {/* Footer / Controls - Very compact */}
       <footer className="px-4 py-2 flex justify-between items-center shrink-0 bg-gradient-to-t from-black via-black/90 to-transparent z-20 h-[5vh]">
           <div className="text-red-900/50 text-[10px] font-mono">
-              v2.3 (Stable)
+              v2.4 (Stable)
           </div>
           
           <button 
