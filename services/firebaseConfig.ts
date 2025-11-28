@@ -2,11 +2,11 @@ import { initializeApp } from 'firebase/app';
 import { getDatabase, ref, onValue, set } from 'firebase/database';
 import { ScheduleItem } from '../types';
 
-// CONFIGURAÇÃO OFICIAL DO SEU PROJETO
+// SUAS CREDENCIAIS DO FIREBASE
 const firebaseConfig = {
   apiKey: "AIzaSyAO9x8YDYqauALigdwn88sIH0mz4o1dkq8",
   authDomain: "quadro-de-horarios-cemal.firebaseapp.com",
-  // A URL deve ser exata. Se não funcionar, verifique no console do Firebase.
+  // A URL deve ser exata. Adicionamos o sufixo padrão.
   databaseURL: "https://quadro-de-horarios-cemal-default-rtdb.firebaseio.com", 
   projectId: "quadro-de-horarios-cemal",
   storageBucket: "quadro-de-horarios-cemal.firebasestorage.app",
@@ -26,10 +26,10 @@ try {
     console.log("Firebase conectado com sucesso!");
 } catch (e) {
     console.error("ERRO GRAVE AO CONECTAR FIREBASE:", e);
-    alert("Erro de Conexão: Verifique o console do navegador (F12).");
+    // Não usamos alert aqui para não travar o carregamento inicial se for apenas um delay
 }
 
-// --- FUNÇÃO DE AUXÍLIO PARA REINICIALIZAÇÃO MANUAL (Caso a URL mude) ---
+// --- FUNÇÃO DE AUXÍLIO PARA REINICIALIZAÇÃO MANUAL ---
 export const initFirebaseManually = (customUrl: string) => {
     try {
         const config = { ...firebaseConfig, databaseURL: customUrl };
@@ -56,7 +56,6 @@ export const subscribeToSchedule = (callback: (data: ScheduleItem[]) => void) =>
     callback(data || []);
   }, (error) => {
     console.error("ERRO DE PERMISSÃO FIREBASE:", error);
-    // Dispara evento para a UI mostrar o aviso de "Regras Bloqueadas"
     window.dispatchEvent(new CustomEvent('firebase-error', { detail: error.message }));
   });
 };
