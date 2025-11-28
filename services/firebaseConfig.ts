@@ -6,8 +6,8 @@ import { ScheduleItem } from '../types';
 const firebaseConfig = {
   apiKey: "AIzaSyAO9x8YDYqauALigdwn88sIH0mz4o1dkq8",
   authDomain: "quadro-de-horarios-cemal.firebaseapp.com",
-  // Tente ambas as URLs se der erro. O padrão é a primeira.
-  databaseURL: "https://quadro-de-horarios-cemal-default-rtdb.firebaseio.com",
+  // URL Padrão do Realtime Database (Geralmente é https://[project-id].firebaseio.com)
+  databaseURL: "https://quadro-de-horarios-cemal.firebaseio.com",
   projectId: "quadro-de-horarios-cemal",
   storageBucket: "quadro-de-horarios-cemal.firebasestorage.app",
   messagingSenderId: "938230155772",
@@ -37,11 +37,12 @@ export const initFirebaseManually = (customUrl: string) => {
 try {
     console.log("Inicializando Firebase App...");
     app = initializeApp(firebaseConfig);
-    console.log("Firebase App OK. Obtendo Database...");
+    console.log("Firebase App inicializado. Obtendo Database...");
     
-    // Tenta obter o banco de dados. Se falhar aqui, cai no catch.
+    // Tenta obter o banco de dados.
+    // Se o importmap estiver misturado, o getDatabase falha aqui.
     db = getDatabase(app);
-    console.log("Firebase Database conectado!");
+    console.log("Firebase Database conectado com sucesso na URL:", firebaseConfig.databaseURL);
 } catch (error) {
     console.error("ERRO CRÍTICO AO INICIALIZAR FIREBASE:", error);
     // Não lançamos erro aqui para permitir que a UI carregue e mostre a tela de diagnóstico
@@ -51,7 +52,7 @@ try {
 
 export const subscribeToSchedule = (callback: (data: ScheduleItem[]) => void) => {
   if (!db) {
-      console.warn("DB não inicializado, ignorando subscribeToSchedule");
+      console.warn("DB não inicializado, ignorando subscribeToSchedule. Verifique a configuração do Firebase.");
       return () => {};
   }
   
@@ -80,7 +81,7 @@ export const updateSchedule = async (newSchedule: ScheduleItem[]) => {
     await set(scheduleRef, newSchedule);
   } catch (e) {
     console.error("Erro ao salvar horário:", e);
-    alert("Erro ao salvar no Firebase. Verifique sua conexão e permissões.");
+    alert("Erro ao salvar no Firebase: " + e.message);
   }
 };
 
