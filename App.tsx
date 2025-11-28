@@ -177,7 +177,7 @@ const App: React.FC = () => {
                         <h3 className="font-bold text-white mb-2 text-lg">⚠️ AÇÃO NECESSÁRIA (Resolva em 1 minuto):</h3>
                         <ol className="list-decimal list-inside text-slate-300 text-sm space-y-2">
                             <li>Acesse o <a href="https://console.firebase.google.com/" target="_blank" className="text-blue-400 underline hover:text-blue-300">Console do Firebase</a>.</li>
-                            <li>Vá em <strong>Criação (Build)</strong> &gt; <strong>Realtime Database</strong> &gt; aba <strong>Regras (Rules)</strong>.</li>
+                            <li>Vá em <strong>Criação (Build)</strong> &gt; <strong>Realtime Database</strong> (NÃO é Firestore) &gt; aba <strong>Regras (Rules)</strong>.</li>
                             <li>Copie e cole o código abaixo (substituindo o que estiver lá):</li>
                         </ol>
                         <div className="mt-3 bg-slate-900 p-3 rounded border border-slate-600 font-mono text-xs text-green-400 select-all">
@@ -277,7 +277,7 @@ const App: React.FC = () => {
       {/* Footer / Controls - Very compact */}
       <footer className="px-4 py-2 flex justify-between items-center shrink-0 bg-gradient-to-t from-black via-black/90 to-transparent z-20 h-[5vh]">
           <div className="text-red-900/50 text-[10px] font-mono">
-              v2.4 (Stable)
+              v3.1 (Conflict Fixed)
           </div>
           
           <button 
