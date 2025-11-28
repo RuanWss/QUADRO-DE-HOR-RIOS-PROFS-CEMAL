@@ -2,7 +2,7 @@ import { initializeApp } from 'firebase/app';
 import { getDatabase, ref, onValue, set } from 'firebase/database';
 import { ScheduleItem } from '../types';
 
-// CREDENCIAIS ATUALIZADAS
+// CREDENCIAIS
 const firebaseConfig = {
   apiKey: "AIzaSyAO9x8YDYqauALigdwn88sIH0mz4o1dkq8",
   authDomain: "quadro-de-horarios-cemal.firebaseapp.com",
@@ -60,7 +60,12 @@ export const subscribeToSchedule = (callback: (data: ScheduleItem[]) => void) =>
 export const updateSchedule = async (newSchedule: ScheduleItem[]) => {
   if (!db) return;
   const scheduleRef = ref(db, 'school_schedule');
-  await set(scheduleRef, newSchedule);
+  try {
+    await set(scheduleRef, newSchedule);
+  } catch (error: any) {
+    console.error("Erro ao salvar horário:", error);
+    alert("ERRO AO SALVAR: Verifique se as Regras do Firebase permitem escrita.");
+  }
 };
 
 // --- SERVIÇOS DE DADOS (CADASTROS/REGISTRY) ---
@@ -86,5 +91,10 @@ export const subscribeToRegistry = (callback: (data: RegistryItem[]) => void) =>
 export const updateRegistry = async (newRegistry: RegistryItem[]) => {
   if (!db) return;
   const registryRef = ref(db, 'school_registry_linked');
-  await set(registryRef, newRegistry);
+  try {
+    await set(registryRef, newRegistry);
+  } catch (error: any) {
+    console.error("Erro ao salvar cadastros:", error);
+    alert("ERRO AO SALVAR: Verifique se as Regras do Firebase permitem escrita.");
+  }
 };
