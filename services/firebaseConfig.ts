@@ -42,6 +42,19 @@ export const initFirebaseManually = (customUrl: string) => {
     }
 };
 
+// --- STATUS DA CONEXÃO ---
+
+export const subscribeToConnectionStatus = (callback: (isConnected: boolean) => void) => {
+  if (!db) return () => {};
+  
+  const connectedRef = ref(db, '.info/connected');
+  
+  return onValue(connectedRef, (snapshot) => {
+    const connected = !!snapshot.val();
+    callback(connected);
+  });
+};
+
 // --- SERVIÇOS DE DADOS (HORÁRIOS) ---
 
 export const subscribeToSchedule = (callback: (data: ScheduleItem[]) => void) => {

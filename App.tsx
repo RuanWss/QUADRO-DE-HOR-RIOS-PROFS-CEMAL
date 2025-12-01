@@ -4,8 +4,8 @@ import { CurrentSlotCard } from './components/CurrentSlotCard';
 import { AdminPanel } from './components/AdminPanel';
 import { ScheduleOverviewModal } from './components/ScheduleOverviewModal';
 import { ScheduleItem, ViewMode, MORNING_SLOTS, AFTERNOON_SLOTS } from './types';
-import { subscribeToSchedule, initFirebaseManually } from './services/firebaseConfig';
-import { Settings, Lock, X, Calendar, WifiOff, RefreshCcw, AlertTriangle } from 'lucide-react';
+import { subscribeToSchedule, initFirebaseManually, subscribeToConnectionStatus } from './services/firebaseConfig';
+import { Settings, Lock, X, Calendar, WifiOff, RefreshCcw, AlertTriangle, Wifi } from 'lucide-react';
 
 // Default calm chime sound
 const ALERT_SOUND_URL = "https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3";
@@ -17,6 +17,9 @@ const App: React.FC = () => {
   const [schedule, setSchedule] = useState<ScheduleItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [connectionError, setConnectionError] = useState<string | null>(null);
+  
+  // Connection Status State
+  const [isOnline, setIsOnline] = useState(false);
   
   // Manual Connection UI
   const [manualUrl, setManualUrl] = useState("https://quadro-de-horarios-professores-default-rtdb.firebaseio.com");
@@ -35,6 +38,11 @@ const App: React.FC = () => {
 
   // --- FIREBASE SUBSCRIPTION ---
   useEffect(() => {
+    // Monitor Connection Status (.info/connected)
+    const unsubscribeStatus = subscribeToConnectionStatus((status) => {
+        setIsOnline(status);
+    });
+
     // Timeout para detectar falha silenciosa na conexão
     const connectionTimeout = setTimeout(() => {
         if (isLoading && schedule.length === 0) {
@@ -42,7 +50,7 @@ const App: React.FC = () => {
         }
     }, 5000);
 
-    const unsubscribe = subscribeToSchedule((data) => {
+    const unsubscribeSchedule = subscribeToSchedule((data) => {
       setSchedule(data);
       setIsLoading(false);
       setConnectionError(null);
@@ -60,7 +68,8 @@ const App: React.FC = () => {
     window.addEventListener('firebase-error', handleFirebaseError);
 
     return () => {
-        unsubscribe();
+        unsubscribeStatus();
+        unsubscribeSchedule();
         clearTimeout(connectionTimeout);
         window.removeEventListener('firebase-error', handleFirebaseError);
     };
@@ -276,8 +285,16 @@ const App: React.FC = () => {
 
       {/* Footer / Controls - Very compact */}
       <footer className="px-4 py-2 flex justify-between items-center shrink-0 bg-gradient-to-t from-black via-black/90 to-transparent z-20 h-[5vh]">
-          <div className="text-red-900/50 text-[10px] font-mono">
-              v4.0 (Stable Fix)
+          <div className="flex items-center gap-4">
+              <div className="text-red-900/50 text-[10px] font-mono">
+                  v4.3 (Clean Fix)
+              </div>
+              
+              {/* STATUS INDICATOR */}
+              <div className={`flex items-center gap-2 px-3 py-1 rounded-full border ${isOnline ? 'bg-green-950/30 border-green-900 text-green-400' : 'bg-red-950/30 border-red-900 text-red-400'}`}>
+                  <div className={`w-2 h-2 rounded-full ${isOnline ? 'bg-green-500 animate-pulse' : 'bg-red-500'}`}></div>
+                  <span className="text-[10px] font-bold tracking-wider">{isOnline ? 'ONLINE' : 'OFFLINE'}</span>
+              </div>
           </div>
           
           <button 
