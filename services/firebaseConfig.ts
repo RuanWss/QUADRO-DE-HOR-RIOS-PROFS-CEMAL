@@ -4,14 +4,15 @@ import { ScheduleItem } from '../types';
 
 // CREDENCIAIS
 const firebaseConfig = {
-  apiKey: "AIzaSyAO9x8YDYqauALigdwn88sIH0mz4o1dkq8",
-  authDomain: "quadro-de-horarios-cemal.firebaseapp.com",
-  databaseURL: "https://quadro-de-horarios-cemal-default-rtdb.firebaseio.com",
-  projectId: "quadro-de-horarios-cemal",
-  storageBucket: "quadro-de-horarios-cemal.firebasestorage.app",
-  messagingSenderId: "938230155772",
-  appId: "1:938230155772:web:43939687fd5d6f59d7ca79",
-  measurementId: "G-MWK9PMPBH8"
+  apiKey: "AIzaSyDmEYeWtqF2X3Z0pEseLnEIHj9XhsuR6ZI",
+  authDomain: "quadro-de-horarios-professores.firebaseapp.com",
+  // Inferred default database URL for the new project
+  databaseURL: "https://quadro-de-horarios-professores-default-rtdb.firebaseio.com",
+  projectId: "quadro-de-horarios-professores",
+  storageBucket: "quadro-de-horarios-professores.firebasestorage.app",
+  messagingSenderId: "853968966638",
+  appId: "1:853968966638:web:d74bd44b08f5d7536074ff",
+  measurementId: "G-L8HHGWLMXG"
 };
 
 // Variáveis globais para armazenar a instância

@@ -19,7 +19,7 @@ const App: React.FC = () => {
   const [connectionError, setConnectionError] = useState<string | null>(null);
   
   // Manual Connection UI
-  const [manualUrl, setManualUrl] = useState("https://quadro-de-horarios-cemal.firebaseio.com");
+  const [manualUrl, setManualUrl] = useState("https://quadro-de-horarios-professores-default-rtdb.firebaseio.com");
 
   // Auth Modal State
   const [showAuthModal, setShowAuthModal] = useState(false);
@@ -277,7 +277,7 @@ const App: React.FC = () => {
       {/* Footer / Controls - Very compact */}
       <footer className="px-4 py-2 flex justify-between items-center shrink-0 bg-gradient-to-t from-black via-black/90 to-transparent z-20 h-[5vh]">
           <div className="text-red-900/50 text-[10px] font-mono">
-              v3.1 (Conflict Fixed)
+              v3.2 (New Firebase)
           </div>
           
           <button 
