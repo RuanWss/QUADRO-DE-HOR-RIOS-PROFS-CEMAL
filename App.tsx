@@ -277,7 +277,7 @@ const App: React.FC = () => {
       {/* Footer / Controls - Very compact */}
       <footer className="px-4 py-2 flex justify-between items-center shrink-0 bg-gradient-to-t from-black via-black/90 to-transparent z-20 h-[5vh]">
           <div className="text-red-900/50 text-[10px] font-mono">
-              v3.8 (Stable)
+              v4.0 (Stable Fix)
           </div>
           
           <button 
