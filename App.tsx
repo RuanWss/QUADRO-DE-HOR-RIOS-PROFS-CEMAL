@@ -4,8 +4,8 @@ import { CurrentSlotCard } from './components/CurrentSlotCard';
 import { AdminPanel } from './components/AdminPanel';
 import { ScheduleOverviewModal } from './components/ScheduleOverviewModal';
 import { ScheduleItem, ViewMode, MORNING_SLOTS, AFTERNOON_SLOTS } from './types';
-import { subscribeToSchedule, initFirebaseManually, subscribeToConnectionStatus } from './services/firebaseConfig';
-import { Settings, Lock, X, Calendar, WifiOff, RefreshCcw, AlertTriangle, Wifi } from 'lucide-react';
+import { subscribeToSchedule } from './services/firebaseConfig';
+import { Settings, Lock, X, Calendar } from 'lucide-react';
 
 // Default calm chime sound
 const ALERT_SOUND_URL = "https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3";
@@ -13,17 +13,10 @@ const ALERT_SOUND_URL = "https://assets.mixkit.co/active_storage/sfx/2869/2869-p
 const App: React.FC = () => {
   const [viewMode, setViewMode] = useState<ViewMode>(ViewMode.DASHBOARD);
   
-  // SCHEDULE STATE: Controlled by Firebase
+  // SCHEDULE STATE
   const [schedule, setSchedule] = useState<ScheduleItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [connectionError, setConnectionError] = useState<string | null>(null);
   
-  // Connection Status State
-  const [isOnline, setIsOnline] = useState(false);
-  
-  // Manual Connection UI
-  const [manualUrl, setManualUrl] = useState("https://quadro-de-horarios-professores-default-rtdb.firebaseio.com");
-
   // Auth Modal State
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [pinInput, setPinInput] = useState("");
@@ -32,46 +25,19 @@ const App: React.FC = () => {
   // Overview Modal State
   const [showOverviewModal, setShowOverviewModal] = useState(false);
   
-  // Ref to track if we already played the sound for a specific timestamp to avoid loops
+  // Audio Refs
   const lastPlayedRef = useRef<string | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
-  // --- FIREBASE SUBSCRIPTION ---
+  // --- DATA SUBSCRIPTION (LOCAL STORAGE) ---
   useEffect(() => {
-    // Monitor Connection Status (.info/connected)
-    const unsubscribeStatus = subscribeToConnectionStatus((status) => {
-        setIsOnline(status);
-    });
-
-    // Timeout para detectar falha silenciosa na conexão
-    const connectionTimeout = setTimeout(() => {
-        if (isLoading && schedule.length === 0) {
-            setConnectionError("Tempo limite excedido. O banco de dados pode estar bloqueado ou vazio.");
-        }
-    }, 5000);
-
     const unsubscribeSchedule = subscribeToSchedule((data) => {
       setSchedule(data);
       setIsLoading(false);
-      setConnectionError(null);
     });
     
-    // Listener de erro global do Firebase
-    const handleFirebaseError = (e: any) => {
-        let msg = e.detail || "Desconhecido";
-        if (msg.includes("permission_denied") || msg.includes("Permission denied")) {
-            setConnectionError("PERMISSÃO NEGADA: O Firebase bloqueou o acesso.");
-        } else {
-            setConnectionError("Erro de Conexão: " + msg);
-        }
-    };
-    window.addEventListener('firebase-error', handleFirebaseError);
-
     return () => {
-        unsubscribeStatus();
         unsubscribeSchedule();
-        clearTimeout(connectionTimeout);
-        window.removeEventListener('firebase-error', handleFirebaseError);
     };
   }, []);
 
@@ -161,69 +127,6 @@ const App: React.FC = () => {
       }
   };
 
-  const handleManualConnect = () => {
-      const success = initFirebaseManually(manualUrl);
-      if (success) {
-          setConnectionError("Reconectando...");
-          window.location.reload();
-      }
-  };
-
-  if (connectionError) {
-      return (
-          <div className="h-screen w-screen bg-black flex flex-col items-center justify-center p-8 text-white font-sans">
-              <div className="bg-red-950/50 border border-red-800 p-8 rounded-2xl max-w-3xl w-full shadow-2xl">
-                  <div className="flex items-center gap-4 mb-6 text-red-500 border-b border-red-900/50 pb-4">
-                      <AlertTriangle size={48} />
-                      <div>
-                        <h1 className="text-2xl font-bold">Acesso Bloqueado pelo Firebase</h1>
-                        <p className="text-red-300 text-sm">{connectionError}</p>
-                      </div>
-                  </div>
-                  
-                  <div className="space-y-4">
-                      <div className="bg-black/40 p-4 rounded border border-slate-700">
-                        <h3 className="font-bold text-white mb-2 text-lg">⚠️ AÇÃO NECESSÁRIA (Resolva em 1 minuto):</h3>
-                        <ol className="list-decimal list-inside text-slate-300 text-sm space-y-2">
-                            <li>Acesse o <a href="https://console.firebase.google.com/" target="_blank" className="text-blue-400 underline hover:text-blue-300">Console do Firebase</a>.</li>
-                            <li>Vá em <strong>Criação (Build)</strong> &gt; <strong>Realtime Database</strong> (NÃO é Firestore) &gt; aba <strong>Regras (Rules)</strong>.</li>
-                            <li>Copie e cole o código abaixo (substituindo o que estiver lá):</li>
-                        </ol>
-                        <div className="mt-3 bg-slate-900 p-3 rounded border border-slate-600 font-mono text-xs text-green-400 select-all">
-                            {`{
-  "rules": {
-    ".read": true,
-    ".write": true
-  }
-}`}
-                        </div>
-                        <p className="text-slate-400 text-xs mt-2">Clique em <strong>Publicar</strong> e depois recarregue esta página.</p>
-                      </div>
-
-                      <div className="mt-6 pt-4 border-t border-slate-800">
-                          <p className="text-slate-500 text-xs mb-2">Opções Avançadas (URL do Banco):</p>
-                          <div className="flex gap-2">
-                              <input 
-                                type="text" 
-                                value={manualUrl} 
-                                onChange={(e) => setManualUrl(e.target.value)}
-                                className="flex-1 bg-black border border-slate-700 text-white px-4 py-2 rounded text-sm font-mono"
-                                placeholder="https://seu-projeto.firebaseio.com"
-                              />
-                              <button 
-                                onClick={handleManualConnect}
-                                className="bg-slate-700 hover:bg-slate-600 text-white px-6 py-2 rounded font-bold flex items-center gap-2 text-sm"
-                              >
-                                  <RefreshCcw size={16} /> Testar URL
-                              </button>
-                          </div>
-                      </div>
-                  </div>
-              </div>
-          </div>
-      );
-  }
-
   return (
     <div className="h-screen w-screen bg-black text-slate-100 font-sans selection:bg-red-500/30 overflow-hidden relative flex flex-col">
       
@@ -253,14 +156,6 @@ const App: React.FC = () => {
           
           {/* Schedule Grid - Takes remaining space */}
           <div className="flex-1 min-h-0 w-full flex items-center justify-center py-2 relative">
-              {isLoading && schedule.length === 0 ? (
-                  <div className="absolute inset-0 flex items-center justify-center z-20 bg-black/50 backdrop-blur-sm rounded-xl border border-red-900/30">
-                      <div className="flex flex-col items-center gap-3">
-                          <div className="w-8 h-8 border-2 border-red-500 border-t-transparent rounded-full animate-spin"></div>
-                          <span className="text-red-300 text-sm font-mono tracking-widest animate-pulse">SINCRONIZANDO...</span>
-                      </div>
-                  </div>
-              ) : null}
               <CurrentSlotCard schedule={schedule} />
           </div>
 
@@ -287,13 +182,7 @@ const App: React.FC = () => {
       <footer className="px-4 py-2 flex justify-between items-center shrink-0 bg-gradient-to-t from-black via-black/90 to-transparent z-20 h-[5vh]">
           <div className="flex items-center gap-4">
               <div className="text-red-900/50 text-[10px] font-mono">
-                  v4.5 (Clean Map)
-              </div>
-              
-              {/* STATUS INDICATOR */}
-              <div className={`flex items-center gap-2 px-3 py-1 rounded-full border ${isOnline ? 'bg-green-950/30 border-green-900 text-green-400' : 'bg-red-950/30 border-red-900 text-red-400'}`}>
-                  <div className={`w-2 h-2 rounded-full ${isOnline ? 'bg-green-500 animate-pulse' : 'bg-red-500'}`}></div>
-                  <span className="text-[10px] font-bold tracking-wider">{isOnline ? 'ONLINE' : 'OFFLINE'}</span>
+                  v5.0 (Offline Mode)
               </div>
           </div>
           

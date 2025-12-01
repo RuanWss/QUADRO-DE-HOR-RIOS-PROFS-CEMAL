@@ -1,88 +1,52 @@
-import { initializeApp } from 'firebase/app';
-import { getDatabase, ref, onValue, set } from 'firebase/database';
 import { ScheduleItem } from '../types';
 
-// CREDENCIAIS
-const firebaseConfig = {
-  apiKey: "AIzaSyDmEYeWtqF2X3Z0pEseLnEIHj9XhsuR6ZI",
-  authDomain: "quadro-de-horarios-professores.firebaseapp.com",
-  // Inferred default database URL for the new project
-  databaseURL: "https://quadro-de-horarios-professores-default-rtdb.firebaseio.com",
-  projectId: "quadro-de-horarios-professores",
-  storageBucket: "quadro-de-horarios-professores.firebasestorage.app",
-  messagingSenderId: "853968966638",
-  appId: "1:853968966638:web:d74bd44b08f5d7536074ff",
-  measurementId: "G-L8HHGWLMXG"
+// CHAVES DE ARMAZENAMENTO LOCAL
+const SCHEDULE_KEY = 'school_schedule_local_v1';
+const REGISTRY_KEY = 'school_registry_local_v1';
+
+// Evento customizado para sincronizar abas e componentes
+const dispatchUpdate = () => {
+  window.dispatchEvent(new Event('local-storage-update'));
 };
 
-// Variáveis globais para armazenar a instância
-let app;
-let db;
-
-try {
-    console.log("Iniciando conexão com Firebase...");
-    app = initializeApp(firebaseConfig);
-    db = getDatabase(app);
-    console.log("Firebase conectado com sucesso! URL:", firebaseConfig.databaseURL);
-} catch (e) {
-    console.error("ERRO GRAVE AO CONECTAR FIREBASE:", e);
-}
-
-// --- FUNÇÃO DE AUXÍLIO PARA REINICIALIZAÇÃO MANUAL ---
-export const initFirebaseManually = (customUrl: string) => {
-    try {
-        const config = { ...firebaseConfig, databaseURL: customUrl };
-        const newApp = initializeApp(config, 'manual-' + Date.now()); 
-        db = getDatabase(newApp);
-        console.log("Reconectado manualmente na URL:", customUrl);
-        return true;
-    } catch (e) {
-        console.error("Falha ao reconectar:", e);
-        return false;
-    }
-};
-
-// --- STATUS DA CONEXÃO ---
-
-export const subscribeToConnectionStatus = (callback: (isConnected: boolean) => void) => {
-  if (!db) return () => {};
-  
-  const connectedRef = ref(db, '.info/connected');
-  
-  return onValue(connectedRef, (snapshot) => {
-    const connected = !!snapshot.val();
-    callback(connected);
-  });
-};
-
-// --- SERVIÇOS DE DADOS (HORÁRIOS) ---
+// --- SIMULAÇÃO DE ASSINATURA (LOCAL STORAGE) ---
 
 export const subscribeToSchedule = (callback: (data: ScheduleItem[]) => void) => {
-  if (!db) return () => {};
+  const loadData = () => {
+    try {
+        const raw = localStorage.getItem(SCHEDULE_KEY);
+        const data = raw ? JSON.parse(raw) : [];
+        callback(data);
+    } catch (e) {
+        console.error("Erro ao ler LocalStorage:", e);
+        callback([]);
+    }
+  };
   
-  const scheduleRef = ref(db, 'school_schedule');
-  
-  return onValue(scheduleRef, (snapshot) => {
-    const data = snapshot.val();
-    callback(data || []);
-  }, (error) => {
-    console.error("ERRO DE PERMISSÃO FIREBASE:", error);
-    window.dispatchEvent(new CustomEvent('firebase-error', { detail: error.message }));
-  });
+  // Carregar imediatamente
+  loadData();
+
+  // Ouvir mudanças
+  window.addEventListener('local-storage-update', loadData);
+  window.addEventListener('storage', loadData); // Sincroniza entre abas
+
+  return () => {
+    window.removeEventListener('local-storage-update', loadData);
+    window.removeEventListener('storage', loadData);
+  };
 };
 
-export const updateSchedule = async (newSchedule: ScheduleItem[]) => {
-  if (!db) return;
-  const scheduleRef = ref(db, 'school_schedule');
+export const updateSchedule = (newSchedule: ScheduleItem[]) => {
   try {
-    await set(scheduleRef, newSchedule);
-  } catch (error: any) {
-    console.error("Erro ao salvar horário:", error);
-    alert("ERRO AO SALVAR: Verifique se as Regras do Firebase permitem escrita.");
+    localStorage.setItem(SCHEDULE_KEY, JSON.stringify(newSchedule));
+    dispatchUpdate();
+  } catch (e) {
+    console.error("Erro ao salvar no LocalStorage:", e);
+    alert("Erro ao salvar dados localmente. O armazenamento pode estar cheio.");
   }
 };
 
-// --- SERVIÇOS DE DADOS (CADASTROS/REGISTRY) ---
+// --- SERVIÇOS DE CADASTROS (REGISTRY) ---
 
 export interface RegistryItem {
     subject: string;
@@ -90,25 +54,41 @@ export interface RegistryItem {
 }
 
 export const subscribeToRegistry = (callback: (data: RegistryItem[]) => void) => {
-  if (!db) return () => {};
-  
-  const registryRef = ref(db, 'school_registry_linked');
-  
-  return onValue(registryRef, (snapshot) => {
-    const data = snapshot.val();
-    callback(data || []);
-  }, (error) => {
-    console.error("Erro ao ler cadastros:", error);
-  });
+  const loadData = () => {
+    try {
+        const raw = localStorage.getItem(REGISTRY_KEY);
+        const data = raw ? JSON.parse(raw) : [];
+        callback(data);
+    } catch (e) {
+        console.error("Erro ao ler registros locais:", e);
+        callback([]);
+    }
+  };
+
+  loadData();
+  window.addEventListener('local-storage-update', loadData);
+  window.addEventListener('storage', loadData);
+
+  return () => {
+    window.removeEventListener('local-storage-update', loadData);
+    window.removeEventListener('storage', loadData);
+  };
 };
 
-export const updateRegistry = async (newRegistry: RegistryItem[]) => {
-  if (!db) return;
-  const registryRef = ref(db, 'school_registry_linked');
+export const updateRegistry = (newRegistry: RegistryItem[]) => {
   try {
-    await set(registryRef, newRegistry);
-  } catch (error: any) {
-    console.error("Erro ao salvar cadastros:", error);
-    alert("ERRO AO SALVAR: Verifique se as Regras do Firebase permitem escrita.");
+    localStorage.setItem(REGISTRY_KEY, JSON.stringify(newRegistry));
+    dispatchUpdate();
+  } catch (e) {
+    console.error("Erro ao salvar registro local:", e);
   }
 };
+
+// --- STATUS MOCK (Sempre Online pois é local) ---
+
+export const subscribeToConnectionStatus = (callback: (isConnected: boolean) => void) => {
+  callback(true);
+  return () => {};
+};
+
+export const initFirebaseManually = () => false;
